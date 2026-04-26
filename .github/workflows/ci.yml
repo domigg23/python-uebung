@@ -1,0 +1,84 @@
+# CI Workflow fuer Aufgabe 11
+# Macht: Compile-Check, Tests, Linting, Security-Checks
+name: CI
+
+# Drei verschiedene Trigger
+on:
+  # 1) Bei jedem Push auf main
+  push:
+    branches: [ main ]
+
+  # 2) Zeitgesteuert: jeden Tag um 6 Uhr UTC
+  schedule:
+    - cron: '0 6 * * *'
+
+  # 3) Manuell ueber die Github-Webseite ausloesbar
+  workflow_dispatch:
+
+jobs:
+
+  # Job 1: Syntax-Check und Tests
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: Python aufsetzen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Abhaengigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax-Check (compileall)
+        run: python -m compileall .
+
+      - name: Unit Tests ausfuehren
+        run: python -m unittest discover -v
+
+  # Job 2: Linting mit ruff
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ruff installieren
+        run: pip install ruff
+
+      - name: Linting laufen lassen
+        run: ruff check .
+
+  # Job 3: Security-Checks (bandit + pip-audit)
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Tools installieren
+        run: pip install bandit pip-audit
+
+      - name: Bandit (Code-Sicherheit)
+        run: bandit -r . -x ./.github
+        continue-on-error: true
+
+      - name: pip-audit (Bibliotheken pruefen)
+        run: pip-audit -r requirements.txt -f json -o audit.json
+        continue-on-error: true
+
+      - name: Audit-Report als Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: audit.json
